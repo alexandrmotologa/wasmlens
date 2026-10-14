@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="squircle-clip">
+      <rect x="24" y="24" width="976" height="976" rx="220" />
+    </clipPath>
+
+    <linearGradient id="cyan-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f5ff"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <linearGradient id="cyan-lens" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <linearGradient id="amber-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+
+    <linearGradient id="slate-facets" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+
+    <filter id="subtle-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.14" />
+    </filter>
+  </defs>
+
+  <!-- 1. Luxury White Squircle Container -->
+  <rect x="24" y="24" width="976" height="976" rx="220" fill="#ffffff" stroke="#e2e8f0" stroke-width="6" />
+
+  <g clip-path="url(#squircle-clip)">
+    <g transform="translate(512, 512)" filter="url(#subtle-shadow)">
+
+      <!-- 2. Hexagonal Architectural Gateway Frame -->
+      <polygon points="
+        0,-390
+        338,-195
+        338,195
+        0,390
+        -338,195
+        -338,-195
+      " fill="none" stroke="#0f172a" stroke-width="36" stroke-linejoin="round" />
+
+      <!-- Inner dashed telemetry ring -->
+      <polygon points="
+        0,-355
+        307,-177
+        307,177
+        0,355
+        -307,177
+        -307,-177
+      " fill="none" stroke="#00f5ff" stroke-width="4" opacity="0.35" stroke-dasharray="16, 12" />
+
+      <!-- 3. Watertight Solid Base Silhouette (The Cyber Dragonfly) -->
+      <path d="
+        M 0 -195
+        L 48 -180 L 95 -145 L 115 -105 L 85 -60
+        L 285 -165 L 320 -150 L 325 -125 L 140 -20
+        L 260 -5 L 285 15 L 280 40 L 90 65
+        L 55 120 L 38 210 L 22 300 L 0 350
+        L -22 300 L -38 210 L -55 120 L -90 65
+        L -280 40 L -285 15 L -260 -5 L -140 -20
+        L -325 -125 L -320 -150 L -285 -165 L -85 -60
+        L -115 -105 L -95 -145 L -48 -180
+        Z
+      " fill="#0b0f19" />
+
+      <!-- 4. Origami Wing Facets (Upper Forewings) -->
+      <!-- Right Forewing -->
+      <polygon points="85,-60 285,-165 320,-150 140,-20" fill="#1e293b" opacity="0.95" />
+      <polygon points="85,-60 320,-150 240,-95" fill="#334155" opacity="0.9" />
+      <polygon points="240,-95 320,-150 325,-125 140,-20" fill="#475569" opacity="0.95" />
+      <!-- Right Forewing Internal CFG Lattice Ribs -->
+      <line x1="85" y1="-60" x2="320" y2="-150" stroke="#00f5ff" stroke-width="2.5" opacity="0.6" />
+      <line x1="140" y1="-20" x2="240" y2="-95" stroke="#00f5ff" stroke-width="2" opacity="0.4" />
+      <circle cx="320" cy="-150" r="4.5" fill="#00f5ff" />
+      <circle cx="240" cy="-95" r="3.5" fill="#00f5ff" />
+
+      <!-- Left Forewing (Symmetrical) -->
+      <polygon points="-85,-60 -285,-165 -320,-150 -140,-20" fill="#0f172a" opacity="0.95" />
+      <polygon points="-85,-60 -320,-150 -240,-95" fill="#1e293b" opacity="0.9" />
+      <polygon points="-240,-95 -320,-150 -325,-125 -140,-20" fill="#334155" opacity="0.95" />
+      <!-- Left Forewing Internal CFG Lattice Ribs -->
+      <line x1="-85" y1="-60" x2="-320" y2="-150" stroke="#00f5ff" stroke-width="2.5" opacity="0.6" />
+      <line x1="-140" y1="-20" x2="-240" y2="-95" stroke="#00f5ff" stroke-width="2" opacity="0.4" />
+      <circle cx="-320" cy="-150" r="4.5" fill="#00f5ff" />
+      <circle cx="-240" cy="-95" r="3.5" fill="#00f5ff" />
+
+      <!-- 5. Origami Wing Facets (Lower Hindwings) -->
+      <!-- Right Hindwing -->
+      <polygon points="70,-10 260,-5 285,15 90,65" fill="#1e293b" opacity="0.9" />
+      <polygon points="260,-5 285,15 280,40 180,45" fill="#334155" opacity="0.85" />
+      <polygon points="70,-10 180,45 90,65" fill="#0f172a" opacity="0.9" />
+      <line x1="70" y1="-10" x2="285" y2="15" stroke="#00f5ff" stroke-width="2" opacity="0.4" />
+      <circle cx="285" cy="15" r="4" fill="#00f5ff" />
+
+      <!-- Left Hindwing (Symmetrical) -->
+      <polygon points="-70,-10 -260,-5 -285,15 -90,65" fill="#0f172a" opacity="0.9" />
+      <polygon points="-260,-5 -285,15 -280,40 -180,45" fill="#1e293b" opacity="0.85" />
+      <polygon points="-70,-10 -180,45 -90,65" fill="#0b0f19" opacity="0.9" />
+      <line x1="-70" y1="-10" x2="-285" y2="15" stroke="#00f5ff" stroke-width="2" opacity="0.4" />
+      <circle cx="-285" cy="15" r="4" fill="#00f5ff" />
+
+      <!-- 6. Segmented Abdomen (Spine of Execution) -->
+      <!-- Abdomen segment 1 -->
+      <polygon points="0,75 45,95 38,135 0,145 -38,135 -45,95" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+      <polygon points="0,75 45,95 0,145" fill="#334155" />
+      <!-- Abdomen segment 2 -->
+      <polygon points="0,145 38,135 32,185 0,195 -32,185 -38,135" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+      <polygon points="0,145 38,135 32,185 0,195" fill="#475569" />
+      <!-- Abdomen segment 3 -->
+      <polygon points="0,195 32,185 26,240 0,250 -26,240 -32,185" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+      <polygon points="0,195 32,185 26,240 0,250" fill="#334155" />
+      <!-- Abdomen segment 4 (Tail needle) -->
+      <polygon points="0,250 26,240 18,300 0,350 -18,300 -26,240" fill="#0f172a" stroke="#0f172a" stroke-width="2" />
+      <polygon points="0,250 26,240 18,300 0,350" fill="#1e293b" />
+      <!-- Abdomen spinal neon pulse node -->
+      <line x1="0" y1="75" x2="0" y2="340" stroke="#00f5ff" stroke-width="2" opacity="0.8" />
+      <circle cx="0" cy="145" r="3" fill="#00f5ff" />
+      <circle cx="0" cy="195" r="3" fill="#00f5ff" />
+      <circle cx="0" cy="250" r="3" fill="#00f5ff" />
+      <circle cx="0" cy="350" r="3.5" fill="#00f5ff" />
+
+      <!-- 7. Thorax Armor Core -->
+      <polygon points="0,-40 60,-20 45,75 0,85 -45,75 -60,-20" fill="#1e293b" stroke="#0f172a" stroke-width="3" />
+      <!-- Light / Shadow facets -->
+      <polygon points="0,-40 60,-20 45,75 0,85" fill="#334155" />
+      <polygon points="0,-40 0,85 -45,75 -60,-20" fill="#1e293b" />
+      <!-- Central Cyan Core Reactor Gem -->
+      <polygon points="0,-5 22,20 0,45 -22,20" fill="url(#cyan-glow)" />
+      <polygon points="0,-5 22,20 0,45" fill="#38bdf8" />
+
+      <!-- 8. Craniofacial Head & Dual Compound Lens Optics -->
+      <!-- Head Armor Silhouette -->
+      <polygon points="0,-185 45,-175 65,-140 35,-65 0,-50 -35,-65 -65,-140 -45,-175" fill="#0f172a" />
+      <polygon points="0,-185 45,-175 65,-140 35,-65 0,-50" fill="#1e293b" />
+      <!-- Top Crest Armor Plate -->
+      <polygon points="0,-185 28,-160 0,-130 -28,-160" fill="#475569" stroke="#0f172a" stroke-width="2" />
+      <polygon points="0,-185 28,-160 0,-130" fill="#64748b" />
+
+      <!-- RIGHT COMPOUND OPTICAL LENS (The WasmLens) -->
+      <!-- Outer Orbit Shell -->
+      <polygon points="25,-160 88,-140 108,-100 82,-55 35,-65 20,-110" fill="#0b0f19" stroke="#0f172a" stroke-width="3" />
+      <!-- Inner Glowing Aperture Facets -->
+      <polygon points="32,-150 82,-132 98,-100 75,-65 38,-75 28,-110" fill="url(#cyan-lens)" />
+      <polygon points="32,-150 82,-132 60,-105" fill="#7dd3fc" opacity="0.9" />
+      <!-- Hexagonal Optical Pupil Aperture -->
+      <polygon points="60,-115 72,-105 72,-95 60,-85 48,-95 48,-105" fill="#ffffff" />
+      <circle cx="60" cy="-100" r="3" fill="#0284c7" />
+
+      <!-- LEFT COMPOUND OPTICAL LENS (Symmetrical) -->
+      <!-- Outer Orbit Shell -->
+      <polygon points="-25,-160 -88,-140 -108,-100 -82,-55 -35,-65 -20,-110" fill="#0b0f19" stroke="#0f172a" stroke-width="3" />
+      <!-- Inner Glowing Aperture Facets -->
+      <polygon points="-32,-150 -82,-132 -98,-100 -75,-65 -38,-75 -28,-110" fill="url(#cyan-lens)" />
+      <polygon points="-32,-150 -82,-132 -60,-105" fill="#38bdf8" opacity="0.75" />
+      <!-- Hexagonal Optical Pupil Aperture -->
+      <polygon points="-60,-115 -48,-105 -48,-95 -60,-85 -72,-95 -72,-105" fill="#ffffff" />
+      <circle cx="-60" cy="-100" r="3" fill="#0284c7" />
+
+      <!-- Antenna Vector Probes -->
+      <line x1="15" y1="-180" x2="45" y2="-230" stroke="#00f5ff" stroke-width="3" stroke-linecap="round" />
+      <circle cx="45" cy="-230" r="4" fill="#00f5ff" />
+      <line x1="-15" y1="-180" x2="-45" y2="-230" stroke="#00f5ff" stroke-width="3" stroke-linecap="round" />
+      <circle cx="-45" cy="-230" r="4" fill="#00f5ff" />
+
+    </g>
+  </g>
+</svg>

@@ -298,11 +298,21 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="No module loaded")
 
         current_vm = WasmVM(current_module)
-        current_vm.invoke(req.func_index, req.args)
+        sig = current_module.get_function_type(req.func_index)
+        actual_args = list(req.args)
+        while len(actual_args) < len(sig.params):
+            actual_args.append(0)
+        actual_args = actual_args[: len(sig.params)]
+
+        try:
+            current_vm.invoke(req.func_index, actual_args)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
         return {
             "status": "ready",
             "func_index": req.func_index,
-            "args": req.args,
+            "args": actual_args,
             "stack": current_vm.stack.snapshot(),
             "locals": current_vm.call_stack[-1].snapshot_locals() if current_vm.call_stack else [],
         }

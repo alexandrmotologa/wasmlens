@@ -1,12 +1,23 @@
-# WasmLens
+<p align="center">
+  <img src="docs/images/logo.png?raw=true" alt="WasmLens Logo" width="130" style="border-radius: 24px;" />
+</p>
 
-Interactive WebAssembly 2.0 binary decompiler, control-flow graph (CFG) visualizer, linear memory inspector, and step-by-step bytecode emulator.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+<h1 align="center">WasmLens</h1>
 
 <p align="center">
-  <img src="docs/images/wasmlens_demo.gif" alt="WasmLens Demo" width="850">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+"></a>
+  <img src="https://img.shields.io/badge/Wasm-2.0-blueviolet.svg" alt="WebAssembly 2.0">
+  <img src="https://img.shields.io/badge/tests-56%20passed-success.svg" alt="Tests: 56 passed">
+  <img src="https://img.shields.io/badge/coverage-80%25-brightgreen.svg" alt="Coverage: 80%">
+</p>
+
+<p align="center">
+  <strong>Interactive WebAssembly 2.0 binary decompiler, control-flow graph (CFG) visualizer, linear memory inspector, and time-travel debugger.</strong>
+</p>
+
+<p align="center">
+  <img src="docs/images/wasmlens_demo.gif?raw=true" alt="WasmLens Interactive Studio Demo" width="900" />
 </p>
 
 ---
@@ -24,7 +35,10 @@ It uses an authentic WebAssembly 2.0 binary section parser and LEB128 decoder wi
 - **Disassembler & Decompiler**: Converts raw bytecode to formatted WebAssembly Text (WAT) and structured expression trees.
 - **Control-Flow Graph (CFG)**: Partitions instruction streams into basic blocks, detects loops and branches, and exports to DOT, Mermaid, or interactive browser graphs.
 - **Linear Memory Inspector**: Maps memory allocations in 64KB pages, overlays active and passive data segments, and displays colored hex dumps.
-- **Bytecode Emulator**: Interprets instructions with full operand stack, activation frames, call depth tracking, and step-by-step state diffing.
+- **Bytecode Emulator & Time-Travel**: Interprets instructions with full operand stack, activation frames, call depth tracking, breakpoints, watchpoints, and step-backward rewind.
+- **Binary Mutation & Patching**: Replaces immediate constants and inserts NOP instructions directly into binary byte streams.
+- **Binary Bloat Profiler**: Twiggy-style byte attribution across sections, compiled function bodies, and data segments.
+- **Static Data-Flow Analyzer**: Simulates stack height transformations and tracks local variable def-use chains.
 - **Terminal CLI & Web Studio**: Provides Rich CLI commands and a local FastAPI studio with interactive visualization.
 
 ## Architecture
@@ -58,7 +72,7 @@ It uses an authentic WebAssembly 2.0 binary section parser and LEB128 decoder wi
                                     v
                       +-----------------------------+
                       |  Bytecode Emulator & VM     |
-                      |  (Step Execution & Tracing) |
+                      |  (Breakpoints & Rewind)     |
                       +--------------+--------------+
                                      |
                          +-----------+-----------+
@@ -90,6 +104,12 @@ wasmlens info sample.wasm
 ```bash
 wasmlens disasm sample.wasm
 wasmlens disasm sample.wasm --func 0
+```
+
+### Decompile to Structured C
+
+```bash
+wasmlens decompile sample.wasm --func 0
 ```
 
 ### Generate Control-Flow Graph
@@ -145,7 +165,7 @@ wasmlens header sample.wasm -o module.h
 wasmlens studio --port 8080
 ```
 
-## Web Studio
+## Web Studio & Visual Interface
 
 The web studio runs locally on top of FastAPI and delivers:
 - Drag-and-drop `.wasm` binary loader.
@@ -157,6 +177,36 @@ The web studio runs locally on top of FastAPI and delivers:
 - Twiggy-style binary bloat space breakdown.
 - Static data-flow and stack-effect simulator with local variable def-use tracking.
 - In-browser bytecode patcher and instant `.wasm` re-download.
+
+### Control-Flow Graph View
+<p align="center">
+  <img src="docs/images/wasmlens_cfg.png?raw=true" alt="WasmLens Control-Flow Graph" width="900" />
+</p>
+
+### Decompiler & WAT Disassembly
+<p align="center">
+  <img src="docs/images/wasmlens_decompiler.png?raw=true" alt="WasmLens Decompiler and WAT View" width="900" />
+</p>
+
+### 64KB Linear Memory Inspector & Hex Gutter
+<p align="center">
+  <img src="docs/images/wasmlens_memory.png?raw=true" alt="WasmLens Linear Memory Inspector" width="900" />
+</p>
+
+### Step Emulator VM & Debugger Traps
+<p align="center">
+  <img src="docs/images/wasmlens_emulator.png?raw=true" alt="WasmLens Step Emulator VM" width="900" />
+</p>
+
+### Binary Bloat Profiler
+<p align="center">
+  <img src="docs/images/wasmlens_bloat.png?raw=true" alt="WasmLens Binary Bloat Profiler" width="900" />
+</p>
+
+### Static Data-Flow & Stack Simulation
+<p align="center">
+  <img src="docs/images/wasmlens_dataflow.png?raw=true" alt="WasmLens Data-Flow Simulation" width="900" />
+</p>
 
 ## Running Tests
 
