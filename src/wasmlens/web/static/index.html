@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WasmLens - WebAssembly Binary Decompiler & Inspector</title>
+  <title>WasmLens - WebAssembly Binary Decompiler, CFG & Debugger</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -45,9 +45,9 @@
       <div>
         <div class="flex items-center space-x-2">
           <span class="font-bold text-lg tracking-tight">WasmLens</span>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.1.0 Wasm 2.0</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.2.0 Wasm 2.0</span>
         </div>
-        <p class="text-xs text-slate-400">Binary Decompiler, CFG Visualizer & Memory Inspector</p>
+        <p class="text-xs text-slate-400">Binary Decompiler, CFG Visualizer, Memory Inspector & Debugger</p>
       </div>
     </div>
 
@@ -73,6 +73,21 @@
           <option value="0">$factorial (func 0)</option>
         </select>
       </div>
+
+      <div class="flex items-center space-x-2 pl-2 border-l border-darkBorder">
+        <button onclick="openPatchModal()" class="px-2.5 py-1.5 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-700/60 rounded-lg text-xs font-medium transition">
+          Patch Bytecode
+        </button>
+        <a href="/api/download" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-darkBorder rounded-lg text-xs font-medium transition">
+          Download .wasm
+        </a>
+        <a href="/api/export/report" target="_blank" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-darkBorder rounded-lg text-xs font-medium transition">
+          HTML Report
+        </a>
+        <a href="/api/export/header" target="_blank" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-darkBorder rounded-lg text-xs font-medium transition">
+          C Header (.h)
+        </a>
+      </div>
     </div>
   </header>
 
@@ -94,6 +109,14 @@
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
       <span>Step Emulator VM</span>
     </button>
+    <button onclick="switchTab('bloat')" id="tab-bloat" class="py-3 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path></svg>
+      <span>Binary Bloat</span>
+    </button>
+    <button onclick="switchTab('dataflow')" id="tab-dataflow" class="py-3 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+      <span>Data-Flow & Stack</span>
+    </button>
   </div>
 
   <!-- Main Content Areas -->
@@ -111,7 +134,7 @@
             <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span><span>Loop Back</span></span>
           </div>
           <div class="flex space-x-2">
-            <button onclick="resetZoom()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300">Fit View</button>
+            <button onclick="renderCFG()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300">Refresh</button>
           </div>
         </div>
         <div id="svgContainer" class="flex-1 overflow-auto p-8 flex items-center justify-center">
@@ -214,12 +237,18 @@
           <div class="flex items-center space-x-2">
             <span class="text-xs text-slate-400">Args:</span>
             <input type="text" id="emuArgsInput" value="5" class="bg-slate-900 border border-darkBorder rounded px-2 py-1 text-xs text-slate-200 w-24 font-mono outline-none">
-            <button onclick="emuInvoke()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-medium transition">Reset</button>
-            <button onclick="emuStep()" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium flex items-center space-x-1 shadow transition">
+            <button onclick="emuInvoke()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-medium transition">Reset</button>
+            <button onclick="emuStepBack()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded text-xs font-medium transition" title="Rewind one step (F9)">
+              Step Back (F9)
+            </button>
+            <button onclick="emuStep()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium flex items-center space-x-1 shadow transition">
               <span>Step (F10)</span>
             </button>
-            <button onclick="emuRun()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium transition">
-              <span>Run (F5)</span>
+            <button onclick="emuContinue()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-medium transition" title="Continue until breakpoint (F8)">
+              Continue (F8)
+            </button>
+            <button onclick="emuRun()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium transition">
+              Run (F5)
             </button>
           </div>
           <div id="emuStatusPill" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">Halted</div>
@@ -238,7 +267,7 @@
               </tr>
             </thead>
             <tbody id="traceTableBody" class="divide-y divide-darkBorder text-slate-300">
-              <tr><td colspan="5" class="p-4 text-center text-slate-500">Press 'Step' or 'Run' to begin execution trace.</td></tr>
+              <tr><td colspan="5" class="p-4 text-center text-slate-500">Press 'Step', 'Continue', or 'Run' to begin execution trace.</td></tr>
             </tbody>
           </table>
         </div>
@@ -246,6 +275,22 @@
 
       <!-- Live Stack & Locals Sidebar -->
       <div class="col-span-1 bg-darkSurface border border-darkBorder rounded-xl p-5 flex flex-col space-y-6 overflow-y-auto">
+        <!-- Breakpoint & Watchpoint Controls -->
+        <div>
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Debugger Traps</h3>
+          <div class="space-y-2 text-xs">
+            <div class="flex space-x-2">
+              <input type="number" id="bpPcInput" placeholder="PC index" class="w-24 bg-slate-900 border border-darkBorder rounded px-2 py-1 text-slate-200 outline-none">
+              <button onclick="toggleBp()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded">Toggle Breakpoint</button>
+            </div>
+            <div class="flex space-x-2">
+              <input type="text" id="wpAddrInput" placeholder="Addr (0x10)" class="w-24 bg-slate-900 border border-darkBorder rounded px-2 py-1 text-slate-200 outline-none">
+              <button onclick="toggleWp()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded">Add Watchpoint</button>
+            </div>
+            <div id="trapsList" class="text-[11px] text-slate-400 font-mono pt-1"></div>
+          </div>
+        </div>
+
         <!-- Operand Stack -->
         <div>
           <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Operand Stack (LIFO)</h3>
@@ -264,11 +309,90 @@
       </div>
     </div>
 
+    <!-- TAB 5: Binary Bloat Profiler -->
+    <div id="pane-bloat" class="hidden flex-1 grid grid-cols-2 gap-6 overflow-hidden">
+      <!-- Section Size Breakdown -->
+      <div class="bg-darkSurface border border-darkBorder rounded-xl p-5 flex flex-col overflow-hidden">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Binary Section Space Breakdown</h3>
+        <div id="bloatSectionsList" class="space-y-3 overflow-y-auto flex-1"></div>
+      </div>
+
+      <!-- Top Functions by Size -->
+      <div class="bg-darkSurface border border-darkBorder rounded-xl p-5 flex flex-col overflow-hidden">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Largest Functions (Twiggy Attribution)</h3>
+        <div id="bloatFunctionsList" class="space-y-3 overflow-y-auto flex-1 font-mono text-xs"></div>
+      </div>
+    </div>
+
+    <!-- TAB 6: Data-Flow & Stack Simulation -->
+    <div id="pane-dataflow" class="hidden flex-1 bg-darkSurface border border-darkBorder rounded-xl flex flex-col overflow-hidden">
+      <div class="p-3 bg-slate-900/60 border-b border-darkBorder flex items-center justify-between text-xs">
+        <span class="font-semibold text-slate-200" id="dfTitle">Data-Flow Simulation</span>
+        <span class="text-slate-400 font-mono" id="dfPeak">Peak Stack Depth: 0</span>
+      </div>
+      <div class="flex-1 overflow-auto">
+        <table class="w-full text-left font-mono text-xs border-collapse">
+          <thead class="bg-slate-900 text-slate-400 sticky top-0 border-b border-darkBorder">
+            <tr>
+              <th class="p-2 w-16">PC</th>
+              <th class="p-2 w-32">Mnemonic</th>
+              <th class="p-2 w-28">Operands</th>
+              <th class="p-2 w-16 text-center">Pops</th>
+              <th class="p-2 w-16 text-center">Pushes</th>
+              <th class="p-2 w-24 text-center">Depth In</th>
+              <th class="p-2 w-24 text-center">Depth Out</th>
+              <th class="p-2">Local Def-Use</th>
+            </tr>
+          </thead>
+          <tbody id="dfTableBody" class="divide-y divide-darkBorder text-slate-300">
+            <tr><td colspan="8" class="p-4 text-center text-slate-500">Loading dataflow analysis...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </main>
+
+  <!-- Bytecode Patcher Modal -->
+  <div id="patchModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div class="bg-darkSurface border border-darkBorder rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-darkBorder pb-3">
+        <h3 class="font-bold text-slate-100 text-sm">Bytecode Patcher</h3>
+        <button onclick="closePatchModal()" class="text-slate-400 hover:text-slate-200">&times;</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1">Function Index</label>
+          <input type="number" id="patchFuncIdx" value="0" class="w-full bg-slate-900 border border-darkBorder rounded p-2 text-slate-200 font-mono">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">Instruction PC (Index in Function)</label>
+          <input type="number" id="patchPc" value="0" class="w-full bg-slate-900 border border-darkBorder rounded p-2 text-slate-200 font-mono">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">Action</label>
+          <select id="patchAction" onchange="togglePatchValInput(this.value)" class="w-full bg-slate-900 border border-darkBorder rounded p-2 text-slate-200">
+            <option value="const">Replace Immediate Constant</option>
+            <option value="nop">NOP Instruction (0x01)</option>
+          </select>
+        </div>
+        <div id="patchValGroup">
+          <label class="block text-slate-400 mb-1">New Constant Value</label>
+          <input type="number" id="patchVal" value="42" class="w-full bg-slate-900 border border-darkBorder rounded p-2 text-slate-200 font-mono">
+        </div>
+      </div>
+      <div class="flex justify-end space-x-2 pt-3 border-t border-darkBorder">
+        <button onclick="closePatchModal()" class="px-4 py-1.5 bg-slate-800 text-slate-300 rounded text-xs font-medium">Cancel</button>
+        <button onclick="applyPatch()" class="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium">Apply & Recompile</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     let currentFunc = 0;
     let moduleData = null;
+    let activeBreakpoints = [];
+    let activeWatchpoints = [];
 
     async function init() {
       await loadModuleOverview();
@@ -312,11 +436,18 @@
 
     async function updateActiveFunction() {
       document.getElementById('cfgTitle').textContent = `CFG: $${moduleData.functions[currentFunc]?.name || currentFunc}`;
-      await Promise.all([renderCFG(), renderCode(), renderMemory(), emuInvoke()]);
+      await Promise.all([
+        renderCFG(),
+        renderCode(),
+        renderMemory(),
+        renderBloat(),
+        renderDataflow(),
+        emuInvoke(),
+      ]);
     }
 
     function switchTab(tab) {
-      ['cfg', 'code', 'memory', 'emulator'].forEach(t => {
+      ['cfg', 'code', 'memory', 'emulator', 'bloat', 'dataflow'].forEach(t => {
         document.getElementById(`pane-${t}`).classList.add('hidden');
         document.getElementById(`tab-${t}`).classList.remove('border-blue-500', 'text-blue-400');
         document.getElementById(`tab-${t}`).classList.add('border-transparent', 'text-slate-400');
@@ -339,7 +470,6 @@
       const svg = document.getElementById('cfgSvg');
       svg.innerHTML = '';
 
-      // Layout blocks vertically with horizontal branching
       const nodeW = 200, nodeH = 100, gapY = 60;
       let curY = 30;
       const blockCoords = {};
@@ -522,6 +652,7 @@
       document.getElementById('emuStatusPill').className = 'text-xs px-2.5 py-0.5 rounded-full bg-blue-900/40 text-blue-400 border border-blue-700 font-mono';
       document.getElementById('traceTableBody').innerHTML = '';
       updateStackAndLocals(data.stack, data.locals);
+      updateTrapsUI();
     }
 
     async function emuStep() {
@@ -534,6 +665,24 @@
       }
       appendTraceRow(trace);
       updateStackAndLocals(trace.stack_after, trace.locals);
+    }
+
+    async function emuStepBack() {
+      const res = await fetch('/api/emulator/step-back', { method: 'POST' });
+      const trace = await res.json();
+      if (trace.status === 'no_history') {
+        alert('Cannot rewind: at the beginning of execution history');
+        return;
+      }
+      updateStackAndLocals(trace.stack, trace.locals);
+      document.getElementById('emuStatusPill').textContent = `Rewound to Step ${trace.step_number}`;
+    }
+
+    async function emuContinue() {
+      const res = await fetch('/api/emulator/continue', { method: 'POST' });
+      const data = await res.json();
+      document.getElementById('emuStatusPill').textContent = `Stopped: ${data.stop_reason} (Step ${data.step_number})`;
+      updateStackAndLocals(data.stack, data.locals);
     }
 
     async function emuRun() {
@@ -549,7 +698,7 @@
       row.className = 'hover:bg-slate-900/60 font-mono';
       row.innerHTML = `
         <td class="p-2 text-center text-slate-500">${t.step_number}</td>
-        <td class="p-2 text-yellow-400">0x${t.pc.toString(16).toUpperCase()}</td>
+        <td class="p-2 text-yellow-400 cursor-pointer" title="Click to toggle breakpoint" onclick="setBpAt(${t.pc})">0x${t.pc.toString(16).toUpperCase()}</td>
         <td class="p-2 font-bold text-slate-200">${t.instruction}</td>
         <td class="p-2 text-emerald-400">${t.stack_after.map(s => s.value).join(', ') || '[]'}</td>
         <td class="p-2 text-blue-400">${t.memory_diff ? `${t.memory_diff.address}: ${t.memory_diff.hex}` : '-'}</td>
@@ -576,11 +725,143 @@
       `).join('') : '<span class="text-slate-500">No locals</span>';
     }
 
+    async function toggleBp() {
+      const pc = parseInt(document.getElementById('bpPcInput').value);
+      if (isNaN(pc)) return;
+      await fetch('/api/emulator/breakpoint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ func_index: currentFunc, pc, enabled: true }),
+      });
+      await updateTrapsUI();
+    }
+
+    async function setBpAt(pc) {
+      document.getElementById('bpPcInput').value = pc;
+      await toggleBp();
+    }
+
+    async function toggleWp() {
+      const raw = document.getElementById('wpAddrInput').value.trim();
+      const addr = raw.startsWith('0x') ? parseInt(raw, 16) : parseInt(raw);
+      if (isNaN(addr)) return;
+      await fetch('/api/emulator/watchpoint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: addr, mode: 'write', enabled: true }),
+      });
+      await updateTrapsUI();
+    }
+
+    async function updateTrapsUI() {
+      const bpRes = await fetch('/api/emulator/breakpoints');
+      const bpData = await bpRes.json();
+      const wpRes = await fetch('/api/emulator/watchpoints');
+      const wpData = await wpRes.json();
+
+      const el = document.getElementById('trapsList');
+      el.innerHTML = `
+        <div>BPs: ${bpData.breakpoints.map(b => `F${b.func_index}@pc${b.pc}`).join(', ') || 'None'}</div>
+        <div>WPs: ${wpData.write_watchpoints.join(', ') || 'None'}</div>
+      `;
+    }
+
+    // --- Bloat Profiler ---
+    async function renderBloat() {
+      const res = await fetch('/api/profiler/bloat');
+      const data = await res.json();
+
+      const secList = document.getElementById('bloatSectionsList');
+      secList.innerHTML = data.sections.map(s => `
+        <div class="p-3 bg-slate-900 border border-darkBorder rounded-lg">
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-bold text-slate-200 uppercase">${s.name}</span>
+            <span class="text-blue-400 font-mono">${s.size.toLocaleString()} B (${s.percentage}%)</span>
+          </div>
+          <div class="w-full bg-slate-800 h-2 rounded-full mt-2 overflow-hidden">
+            <div class="bg-blue-500 h-full" style="width: ${s.percentage}%"></div>
+          </div>
+        </div>
+      `).join('');
+
+      const fnList = document.getElementById('bloatFunctionsList');
+      fnList.innerHTML = data.functions.map(f => `
+        <div class="p-2.5 bg-slate-900 border border-darkBorder rounded-lg flex justify-between items-center">
+          <div>
+            <span class="text-blue-400 font-bold">$${f.name}</span>
+            <span class="text-slate-500 ml-2">(${f.instruction_count} instructions)</span>
+          </div>
+          <span class="text-emerald-400 font-bold">${f.size} B (${f.percentage}%)</span>
+        </div>
+      `).join('');
+    }
+
+    // --- Dataflow Simulation ---
+    async function renderDataflow() {
+      const res = await fetch(`/api/analysis/dataflow/${currentFunc}`);
+      const data = await res.json();
+
+      document.getElementById('dfTitle').textContent = `Data-Flow: $${data.func_name} (func ${data.func_index})`;
+      document.getElementById('dfPeak').textContent = `Peak Stack Depth: ${data.max_stack_depth}`;
+
+      const tbody = document.getElementById('dfTableBody');
+      tbody.innerHTML = data.instructions.map(i => `
+        <tr class="hover:bg-slate-900/60 font-mono">
+          <td class="p-2 text-yellow-400">0x${i.pc.toString(16).padStart(2, '0').toUpperCase()}</td>
+          <td class="p-2 font-bold text-slate-200">${i.mnemonic}</td>
+          <td class="p-2 text-slate-400">${i.operands || '-'}</td>
+          <td class="p-2 text-center text-rose-400">${i.stack_pops}</td>
+          <td class="p-2 text-center text-emerald-400">${i.stack_pushes}</td>
+          <td class="p-2 text-center text-blue-400">${i.stack_depth_in}</td>
+          <td class="p-2 text-center text-green-400 font-bold">${i.stack_depth_out}</td>
+          <td class="p-2 text-slate-400">${i.reads_locals.length ? `R:[${i.reads_locals}] ` : ''}${i.writes_locals.length ? `W:[${i.writes_locals}]` : ''}</td>
+        </tr>
+      `).join('');
+    }
+
+    // --- Patcher Modal ---
+    function openPatchModal() {
+      document.getElementById('patchFuncIdx').value = currentFunc;
+      document.getElementById('patchModal').classList.remove('hidden');
+    }
+
+    function closePatchModal() {
+      document.getElementById('patchModal').classList.add('hidden');
+    }
+
+    function togglePatchValInput(action) {
+      document.getElementById('patchValGroup').style.display = action === 'nop' ? 'none' : 'block';
+    }
+
+    async function applyPatch() {
+      const func_index = parseInt(document.getElementById('patchFuncIdx').value);
+      const pc = parseInt(document.getElementById('patchPc').value);
+      const action = document.getElementById('patchAction').value;
+      const value = action === 'const' ? parseInt(document.getElementById('patchVal').value) : null;
+
+      const res = await fetch('/api/patch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ func_index, pc, action, value }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`Patch Failed: ${err.detail}`);
+        return;
+      }
+
+      alert('Binary patched and recompiled successfully!');
+      closePatchModal();
+      await loadModuleOverview();
+      await updateActiveFunction();
+    }
+
     window.onload = async () => {
       await init();
       if (window.location.hash) {
         const h = window.location.hash.substring(1);
-        if (['cfg', 'code', 'memory', 'emulator'].includes(h)) {
+        if (['cfg', 'code', 'memory', 'emulator', 'bloat', 'dataflow'].includes(h)) {
           switchTab(h);
         }
       }

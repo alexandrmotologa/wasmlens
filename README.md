@@ -105,10 +105,38 @@ wasmlens cfg sample.wasm --func 0 --format dot -o cfg.dot
 wasmlens mem sample.wasm --page 0 --length 256
 ```
 
-### Step-by-Step Bytecode Emulation
+### Step-by-Step Bytecode Emulation & Debugging
 
 ```bash
 wasmlens emu sample.wasm --func 0 --arg 5 --step
+wasmlens emu sample.wasm --func 0 --arg 5 --break-at 4 --watch 16
+```
+
+### Binary Mutation & Patching
+
+```bash
+wasmlens patch sample.wasm -o patched.wasm --func 0 --pc 0 --const 42
+wasmlens patch sample.wasm -o patched.wasm --func 0 --pc 3 --nop
+```
+
+### Binary Bloat & Size Profiling
+
+```bash
+wasmlens bloat sample.wasm --top 10
+wasmlens bloat sample.wasm --json
+```
+
+### Data-Flow & Stack Simulation
+
+```bash
+wasmlens dataflow sample.wasm --func 0
+```
+
+### Export Standalone HTML Report & C Header
+
+```bash
+wasmlens report sample.wasm -o audit.html
+wasmlens header sample.wasm -o module.h
 ```
 
 ### Launch Interactive Web Studio
@@ -124,7 +152,11 @@ The web studio runs locally on top of FastAPI and delivers:
 - Interactive CFG viewer with branch and loop edge coloring.
 - Synchronized disassembly and block inspector.
 - 64KB linear memory page map with interactive hex gutter.
-- Step-by-step emulator workbench with stack and register inspection.
+- Step-by-step emulator workbench with stack, register inspection, and time-travel rewind.
+- Breakpoint and memory watchpoint trap manager.
+- Twiggy-style binary bloat space breakdown.
+- Static data-flow and stack-effect simulator with local variable def-use tracking.
+- In-browser bytecode patcher and instant `.wasm` re-download.
 
 ## Running Tests
 

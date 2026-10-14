@@ -1,11 +1,12 @@
-"""Authentic WebAssembly 2.0 bytecode emulator with step-by-step tracing."""
+"""Authentic WebAssembly 2.0 bytecode emulator with step-by-step tracing and advanced debugging."""
 
 from __future__ import annotations
 
+import copy
 import math
 import struct
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from wasmlens.emulator.frame import ActivationFrame, ControlLabel
 from wasmlens.emulator.stack import OperandStack, VMError, WasmValue
@@ -37,10 +38,22 @@ class StepTrace:
     locals_snapshot: List[dict]
     memory_diff: Optional[MemoryDiff] = None
     is_halted: bool = False
+    hit_breakpoint: bool = False
+    hit_watchpoint: Optional[str] = None
+
+
+@dataclass
+class ExecutionSnapshot:
+    """Complete frozen virtual machine state snapshot for time-travel debugging."""
+    step_counter: int
+    call_stack: List[ActivationFrame]
+    stack: List[WasmValue]
+    memory: bytearray
+    globals: List[WasmValue]
 
 
 class WasmVM:
-    """WebAssembly 2.0 virtual machine runtime."""
+    """WebAssembly 2.0 virtual machine runtime with breakpoints, watchpoints and time-travel debugging."""
 
     def __init__(self, module: WasmModule) -> None:
         self.module = module
@@ -50,6 +63,13 @@ class WasmVM:
         self.call_stack: List[ActivationFrame] = []
         self.globals: List[WasmValue] = []
         self.step_counter = 0
+
+        # Debugger state
+        self.breakpoints: Set[Tuple[int, int]] = set()  # (func_index, pc)
+        self.read_watchpoints: Set[int] = set()         # memory addresses
+        self.write_watchpoints: Set[int] = set()        # memory addresses
+        self.history: List[ExecutionSnapshot] = []
+        self.history_limit: int = 1000
 
         self._init_globals()
 
@@ -61,6 +81,146 @@ class WasmVM:
                 if instr.mnemonic in ("i32.const", "i64.const", "f32.const", "f64.const"):
                     val = instr.operands
             self.globals.append(WasmValue(g.type.valtype, val))
+
+    def add_breakpoint(self, func_index: int, pc: int) -> None:
+        """Add an execution breakpoint at (func_index, pc)."""
+        self.breakpoints.add((func_index, pc))
+
+    def remove_breakpoint(self, func_index: int, pc: int) -> None:
+        """Remove a breakpoint at (func_index, pc)."""
+        self.breakpoints.discard((func_index, pc))
+
+    def clear_breakpoints(self) -> None:
+        """Remove all breakpoints."""
+        self.breakpoints.clear()
+
+    def add_watchpoint(self, address: int, on_read: bool = False, on_write: bool = True) -> None:
+        """Add a memory watchpoint on read, write, or both."""
+        if on_read:
+            self.read_watchpoints.add(address)
+        if on_write:
+            self.write_watchpoints.add(address)
+
+    def remove_watchpoint(self, address: int) -> None:
+        """Remove memory watchpoints at address."""
+        self.read_watchpoints.discard(address)
+        self.write_watchpoints.discard(address)
+
+    def clear_watchpoints(self) -> None:
+        """Clear all watchpoints."""
+        self.read_watchpoints.clear()
+        self.write_watchpoints.clear()
+
+    def create_snapshot(self) -> ExecutionSnapshot:
+        """Capture an immutable snapshot of the current VM state."""
+        cloned_frames: List[ActivationFrame] = []
+        for f in self.call_stack:
+            copied_frame = ActivationFrame(
+                func_index=f.func_index,
+                func_name=f.func_name,
+                locals=[WasmValue(v.type, v.value) for v in f.locals],
+                instructions=f.instructions,
+                pc=f.pc,
+                labels=[
+                    ControlLabel(
+                        kind=lbl.kind,
+                        start_pc=lbl.start_pc,
+                        continuation_pc=lbl.continuation_pc,
+                        end_pc=lbl.end_pc,
+                        stack_height=lbl.stack_height,
+                        result_type=lbl.result_type,
+                    )
+                    for lbl in f.labels
+                ],
+            )
+            copied_frame.matching_end = dict(f.matching_end)
+            copied_frame.matching_else = dict(f.matching_else)
+            cloned_frames.append(copied_frame)
+
+        cloned_stack = [WasmValue(v.type, v.value) for v in self.stack._stack]
+        cloned_memory = bytearray(self.memory)
+        cloned_globals = [WasmValue(v.type, v.value) for v in self.globals]
+
+        return ExecutionSnapshot(
+            step_counter=self.step_counter,
+            call_stack=cloned_frames,
+            stack=cloned_stack,
+            memory=cloned_memory,
+            globals=cloned_globals,
+        )
+
+    def restore_snapshot(self, snap: ExecutionSnapshot) -> None:
+        """Restore virtual machine state from a recorded snapshot."""
+        self.step_counter = snap.step_counter
+        self.call_stack = []
+        for f in snap.call_stack:
+            restored_frame = ActivationFrame(
+                func_index=f.func_index,
+                func_name=f.func_name,
+                locals=[WasmValue(v.type, v.value) for v in f.locals],
+                instructions=f.instructions,
+                pc=f.pc,
+                labels=[
+                    ControlLabel(
+                        kind=lbl.kind,
+                        start_pc=lbl.start_pc,
+                        continuation_pc=lbl.continuation_pc,
+                        end_pc=lbl.end_pc,
+                        stack_height=lbl.stack_height,
+                        result_type=lbl.result_type,
+                    )
+                    for lbl in f.labels
+                ],
+            )
+            restored_frame.matching_end = dict(f.matching_end)
+            restored_frame.matching_else = dict(f.matching_else)
+            self.call_stack.append(restored_frame)
+
+        self.stack._stack = [WasmValue(v.type, v.value) for v in snap.stack]
+        self.memory[:] = snap.memory
+        self.globals = [WasmValue(v.type, v.value) for v in snap.globals]
+
+    def step_backward(self) -> Optional[StepTrace]:
+        """Rewind virtual machine by one execution step."""
+        if not self.history:
+            return None
+        snapshot = self.history.pop()
+        self.restore_snapshot(snapshot)
+
+        if not self.call_stack:
+            return StepTrace(
+                step_number=self.step_counter,
+                func_index=0,
+                func_name="",
+                pc=0,
+                instruction_mnemonic="halted",
+                instruction_operands="",
+                instruction_offset=0,
+                stack_before=[],
+                stack_after=self.stack.snapshot(),
+                locals_snapshot=[],
+                is_halted=True,
+            )
+
+        frame = self.call_stack[-1]
+        instr = (
+            frame.instructions[frame.pc]
+            if frame.pc < len(frame.instructions)
+            else Instruction(opcode=0x0B, mnemonic="end")
+        )
+        return StepTrace(
+            step_number=self.step_counter,
+            func_index=frame.func_index,
+            func_name=frame.func_name,
+            pc=frame.pc,
+            instruction_mnemonic=instr.mnemonic,
+            instruction_operands=str(instr.operands) if instr.operands is not None else "",
+            instruction_offset=instr.offset,
+            stack_before=self.stack.snapshot(),
+            stack_after=self.stack.snapshot(),
+            locals_snapshot=frame.snapshot_locals(),
+            is_halted=not self.is_running,
+        )
 
     def invoke(self, func_index: int, args: List[int | float]) -> None:
         """Set up call stack for function execution."""
@@ -76,7 +236,6 @@ class WasmVM:
         if len(args) != len(sig.params):
             raise VMError(f"Function {fn_name} expected {len(sig.params)} arguments, got {len(args)}")
 
-        # Initialize locals: arguments followed by zeroed declared locals
         locals_list: List[WasmValue] = []
         for i, val in enumerate(args):
             locals_list.append(WasmValue(sig.params[i], val))
@@ -94,6 +253,7 @@ class WasmVM:
             pc=0,
         )
         self.call_stack.append(frame)
+        self.history.clear()
 
     @property
     def is_running(self) -> bool:
@@ -103,6 +263,12 @@ class WasmVM:
         """Execute a single bytecode instruction and return execution trace."""
         if not self.call_stack:
             raise VMError("Virtual machine is halted; no active call frame")
+
+        # Record snapshot for time-travel
+        snapshot = self.create_snapshot()
+        self.history.append(snapshot)
+        if len(self.history) > self.history_limit:
+            self.history.pop(0)
 
         frame = self.call_stack[-1]
         if frame.pc >= len(frame.instructions):
@@ -126,7 +292,7 @@ class WasmVM:
         stack_before = self.stack.snapshot()
         self.step_counter += 1
 
-        mem_diff = self._execute_instruction(frame, instr)
+        mem_diff, watchpoint_hit = self._execute_instruction(frame, instr)
 
         # Advance PC if instruction didn't perform a jump or function call
         if self.call_stack and self.call_stack[-1] is frame:
@@ -135,6 +301,13 @@ class WasmVM:
 
         stack_after = self.stack.snapshot()
         locals_snap = frame.snapshot_locals()
+
+        # Check if next instruction is on a breakpoint
+        hit_bp = False
+        if self.call_stack:
+            next_frame = self.call_stack[-1]
+            if (next_frame.func_index, next_frame.pc) in self.breakpoints:
+                hit_bp = True
 
         return StepTrace(
             step_number=self.step_counter,
@@ -149,11 +322,25 @@ class WasmVM:
             locals_snapshot=locals_snap,
             memory_diff=mem_diff,
             is_halted=not self.is_running,
+            hit_breakpoint=hit_bp,
+            hit_watchpoint=watchpoint_hit,
         )
 
-    def _execute_instruction(self, frame: ActivationFrame, instr: Instruction) -> Optional[MemoryDiff]:
+    def _check_watchpoint(self, addr: int, size: int, mode: str) -> Optional[str]:
+        target_set = self.read_watchpoints if mode == "read" else self.write_watchpoints
+        if not target_set:
+            return None
+        for b_offset in range(size):
+            if (addr + b_offset) in target_set:
+                return f"{mode.upper()} watchpoint hit at 0x{(addr + b_offset):06X}"
+        return None
+
+    def _execute_instruction(
+        self, frame: ActivationFrame, instr: Instruction
+    ) -> Tuple[Optional[MemoryDiff], Optional[str]]:
         m = instr.mnemonic
         mem_diff: Optional[MemoryDiff] = None
+        watchpoint_hit: Optional[str] = None
 
         # 1. Constants
         if m == "i32.const":
@@ -184,11 +371,30 @@ class WasmVM:
             self.globals[idx] = self.stack.pop()
 
         # 3. Memory load
-        elif m in ("i32.load", "i64.load", "f32.load", "f64.load", "i32.load8_s", "i32.load8_u", "i32.load16_s", "i32.load16_u"):
+        elif m in (
+            "i32.load",
+            "i64.load",
+            "f32.load",
+            "f64.load",
+            "i32.load8_s",
+            "i32.load8_u",
+            "i32.load16_s",
+            "i32.load16_u",
+        ):
             align, offset = instr.operands
             addr = self.stack.pop_i32() + offset
             if addr < 0 or addr >= len(self.memory):
                 raise VMError(f"Out of bounds memory access at 0x{addr:08X}")
+
+            read_size = 4
+            if m in ("i64.load", "f64.load"):
+                read_size = 8
+            elif m in ("i32.load8_s", "i32.load8_u"):
+                read_size = 1
+            elif m in ("i32.load16_s", "i32.load16_u"):
+                read_size = 2
+
+            watchpoint_hit = self._check_watchpoint(addr, read_size, "read")
 
             if m == "i32.load":
                 val = struct.unpack("<i", self.memory[addr : addr + 4])[0]
@@ -238,6 +444,7 @@ class WasmVM:
             else:
                 raw = b""
 
+            watchpoint_hit = self._check_watchpoint(addr, len(raw), "write")
             old_bytes = bytes(self.memory[addr : addr + len(raw)])
             self.memory[addr : addr + len(raw)] = raw
             mem_diff = MemoryDiff(address=addr, size=len(raw), old_bytes=old_bytes, new_bytes=raw)
@@ -448,14 +655,41 @@ class WasmVM:
             for _ in range(len(target_sig.params)):
                 call_args.insert(0, self.stack.pop().value)
 
-            # Advance current frame PC so when return happens, it resumes at next instruction
             frame.pc += 1
             self.invoke(target_fn_idx, call_args)
 
         elif m == "drop":
             self.stack.pop()
 
-        return mem_diff
+        return mem_diff, watchpoint_hit
+
+    def run_until_break(self, max_steps: int = 10000) -> Tuple[bool, Optional[str]]:
+        """Run execution until a breakpoint is hit, watchpoint triggers, or VM halts.
+
+        Returns (is_halted, stop_reason).
+        """
+        for _ in range(max_steps):
+            if not self.is_running:
+                return True, "halted"
+
+            frame = self.call_stack[-1]
+            if (frame.func_index, frame.pc) in self.breakpoints and self.step_counter > 0:
+                return False, f"Breakpoint at func {frame.func_index} pc {frame.pc}"
+
+            trace = self.step()
+            if trace.hit_watchpoint:
+                return False, trace.hit_watchpoint
+
+            if not self.is_running:
+                return True, "completed"
+
+            # Check if next instruction is a breakpoint
+            if self.call_stack:
+                next_f = self.call_stack[-1]
+                if (next_f.func_index, next_f.pc) in self.breakpoints:
+                    return False, f"Breakpoint at func {next_f.func_index} pc {next_f.pc}"
+
+        return False, "step_limit_reached"
 
     def run_to_completion(self, max_steps: int = 50000) -> List[int | float]:
         """Execute continuously until all call frames return."""
