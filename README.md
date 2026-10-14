@@ -5,6 +5,10 @@ Interactive WebAssembly 2.0 binary decompiler, control-flow graph (CFG) visualiz
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 
+<p align="center">
+  <img src="docs/images/wasmlens_demo.gif" alt="WasmLens Demo" width="850">
+</p>
+
 ---
 
 ## Overview

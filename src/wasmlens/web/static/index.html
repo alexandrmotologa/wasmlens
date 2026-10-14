@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WasmLens - WebAssembly Binary Decompiler & Inspector</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#3b82f6',
+            darkBg: '#0f172a',
+            darkSurface: '#1e293b',
+            darkBorder: '#334155',
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .cfg-node { transition: all 0.2s ease; cursor: pointer; }
+    .cfg-node:hover { stroke: #60a5fa !important; stroke-width: 2px !important; }
+    .cfg-edge { stroke-dasharray: 4; animation: dash 20s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -100; } }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-darkBg text-slate-100 font-sans min-h-screen flex flex-col">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-darkSurface border-b border-darkBorder px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/30">
+        W
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="font-bold text-lg tracking-tight">WasmLens</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-mono">v0.1.0 Wasm 2.0</span>
+        </div>
+        <p class="text-xs text-slate-400">Binary Decompiler, CFG Visualizer & Memory Inspector</p>
+      </div>
+    </div>
+
+    <!-- Controls Toolbar -->
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2 bg-slate-900 border border-darkBorder rounded-lg px-2.5 py-1.5">
+        <label class="text-xs text-slate-400">Sample:</label>
+        <select id="sampleSelect" onchange="loadSample(this.value)" class="bg-transparent text-xs text-slate-200 outline-none cursor-pointer">
+          <option value="factorial.wasm">factorial.wasm</option>
+          <option value="fibonacci.wasm">fibonacci.wasm</option>
+          <option value="memory_ops.wasm">memory_ops.wasm</option>
+        </select>
+      </div>
+
+      <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-darkBorder text-xs text-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition">
+        <span>Upload .wasm</span>
+        <input type="file" id="fileUpload" accept=".wasm" class="hidden" onchange="uploadBinary(this.files[0])">
+      </label>
+
+      <div class="flex items-center space-x-2 bg-slate-900 border border-darkBorder rounded-lg px-2.5 py-1.5">
+        <label class="text-xs text-slate-400">Func:</label>
+        <select id="funcSelect" onchange="selectFunction(parseInt(this.value))" class="bg-transparent text-xs text-blue-400 font-mono outline-none cursor-pointer">
+          <option value="0">$factorial (func 0)</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- Workspace Sub-Nav Tabs -->
+  <div class="bg-slate-900/80 border-b border-darkBorder px-6 flex space-x-8 text-sm">
+    <button onclick="switchTab('cfg')" id="tab-cfg" class="py-3 font-medium border-b-2 border-blue-500 text-blue-400 flex items-center space-x-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+      <span>Control-Flow Graph</span>
+    </button>
+    <button onclick="switchTab('code')" id="tab-code" class="py-3 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+      <span>Decompiler & WAT</span>
+    </button>
+    <button onclick="switchTab('memory')" id="tab-memory" class="py-3 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+      <span>64KB Linear Memory</span>
+    </button>
+    <button onclick="switchTab('emulator')" id="tab-emulator" class="py-3 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>
+      <span>Step Emulator VM</span>
+    </button>
+  </div>
+
+  <!-- Main Content Areas -->
+  <main class="flex-1 p-6 overflow-hidden flex flex-col">
+
+    <!-- TAB 1: Control-Flow Graph -->
+    <div id="pane-cfg" class="flex-1 flex gap-6 overflow-hidden">
+      <!-- Graph Canvas -->
+      <div class="flex-1 bg-darkSurface border border-darkBorder rounded-xl relative overflow-hidden flex flex-col shadow-inner">
+        <div class="p-3 bg-slate-900/60 border-b border-darkBorder flex items-center justify-between text-xs text-slate-400">
+          <div class="flex items-center space-x-3">
+            <span class="font-semibold text-slate-200" id="cfgTitle">CFG: $factorial</span>
+            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span><span>True / Jump</span></span>
+            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span><span>False</span></span>
+            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span><span>Loop Back</span></span>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="resetZoom()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300">Fit View</button>
+          </div>
+        </div>
+        <div id="svgContainer" class="flex-1 overflow-auto p-8 flex items-center justify-center">
+          <svg id="cfgSvg" class="w-full h-full min-h-[500px]"></svg>
+        </div>
+      </div>
+
+      <!-- Graph Metrics & Details Sidebar -->
+      <div class="w-80 bg-darkSurface border border-darkBorder rounded-xl p-5 flex flex-col space-y-5 overflow-y-auto">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Graph Metrics</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-darkBorder">
+            <div class="text-xs text-slate-400">Basic Blocks</div>
+            <div id="metricBlocks" class="text-xl font-bold text-blue-400 font-mono">0</div>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-darkBorder">
+            <div class="text-xs text-slate-400">Edges</div>
+            <div id="metricEdges" class="text-xl font-bold text-slate-200 font-mono">0</div>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-darkBorder">
+            <div class="text-xs text-slate-400">Cyclomatic Comp.</div>
+            <div id="metricComplexity" class="text-xl font-bold text-emerald-400 font-mono">0</div>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-darkBorder">
+            <div class="text-xs text-slate-400">Natural Loops</div>
+            <div id="metricLoops" class="text-xl font-bold text-amber-400 font-mono">0</div>
+          </div>
+        </div>
+
+        <div class="flex-1 flex flex-col">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Block Inspector</h3>
+          <div id="selectedBlockInfo" class="flex-1 bg-slate-900/80 p-3 rounded-lg border border-darkBorder text-xs font-mono text-slate-300 overflow-y-auto">
+            Click any block in the graph to inspect instructions and boundaries.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Decompiler & WAT -->
+    <div id="pane-code" class="hidden flex-1 grid grid-cols-2 gap-6 overflow-hidden">
+      <!-- WAT Disassembly -->
+      <div class="bg-darkSurface border border-darkBorder rounded-xl flex flex-col overflow-hidden">
+        <div class="px-4 py-2.5 bg-slate-900/60 border-b border-darkBorder text-xs font-semibold text-slate-300 flex justify-between items-center">
+          <span>WebAssembly Text (WAT) Bytecode</span>
+          <span class="text-slate-500 font-mono">Stack Machine</span>
+        </div>
+        <pre id="watView" class="flex-1 p-4 font-mono text-xs text-blue-300 overflow-auto whitespace-pre leading-relaxed bg-slate-950/50"></pre>
+      </div>
+
+      <!-- Decompiled C Pseudocode -->
+      <div class="bg-darkSurface border border-darkBorder rounded-xl flex flex-col overflow-hidden">
+        <div class="px-4 py-2.5 bg-slate-900/60 border-b border-darkBorder text-xs font-semibold text-slate-300 flex justify-between items-center">
+          <span>Reconstructed Structured C Pseudocode</span>
+          <span class="text-slate-500 font-mono">Expression AST</span>
+        </div>
+        <pre id="decompileView" class="flex-1 p-4 font-mono text-xs text-emerald-300 overflow-auto whitespace-pre leading-relaxed bg-slate-950/50"></pre>
+      </div>
+    </div>
+
+    <!-- TAB 3: Linear Memory -->
+    <div id="pane-memory" class="hidden flex-1 flex flex-col space-y-6 overflow-hidden">
+      <!-- Page Overview Banner -->
+      <div class="bg-darkSurface border border-darkBorder rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-200">64 KiB Linear Memory Pages</h3>
+          <p id="memoryStats" class="text-xs text-slate-400">Total: 65,536 bytes (1 page) | Min: 1 page, Max: 2 pages</p>
+        </div>
+        <!-- Search bar -->
+        <div class="flex items-center space-x-2">
+          <input type="text" id="memSearchInput" placeholder="Search string, 0x1234, or int" class="bg-slate-900 border border-darkBorder rounded-lg px-3 py-1.5 text-xs text-slate-200 w-64 outline-none focus:border-blue-500">
+          <button onclick="searchMemory()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-medium text-white transition">Search</button>
+        </div>
+      </div>
+
+      <!-- Hexdump & Page Map Split -->
+      <div class="flex-1 grid grid-cols-4 gap-6 overflow-hidden">
+        <!-- Page Layout List -->
+        <div class="col-span-1 bg-darkSurface border border-darkBorder rounded-xl p-4 flex flex-col space-y-3 overflow-y-auto">
+          <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Allocated Pages</h4>
+          <div id="pagesList" class="space-y-2"></div>
+        </div>
+
+        <!-- Hexdump Viewer -->
+        <div class="col-span-3 bg-darkSurface border border-darkBorder rounded-xl flex flex-col overflow-hidden">
+          <div class="px-4 py-2.5 bg-slate-900/60 border-b border-darkBorder text-xs font-semibold text-slate-300 flex justify-between items-center">
+            <span>Memory Hex Gutter</span>
+            <span class="text-slate-500 font-mono">16 bytes / line</span>
+          </div>
+          <div id="hexDumpContainer" class="flex-1 p-4 font-mono text-xs overflow-auto bg-slate-950/50 text-slate-300 space-y-1"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Emulator Debugger -->
+    <div id="pane-emulator" class="hidden flex-1 grid grid-cols-3 gap-6 overflow-hidden">
+      <!-- Trace and Step Table -->
+      <div class="col-span-2 bg-darkSurface border border-darkBorder rounded-xl flex flex-col overflow-hidden">
+        <!-- Execution Controls -->
+        <div class="p-3 bg-slate-900/60 border-b border-darkBorder flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400">Args:</span>
+            <input type="text" id="emuArgsInput" value="5" class="bg-slate-900 border border-darkBorder rounded px-2 py-1 text-xs text-slate-200 w-24 font-mono outline-none">
+            <button onclick="emuInvoke()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-medium transition">Reset</button>
+            <button onclick="emuStep()" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium flex items-center space-x-1 shadow transition">
+              <span>Step (F10)</span>
+            </button>
+            <button onclick="emuRun()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium transition">
+              <span>Run (F5)</span>
+            </button>
+          </div>
+          <div id="emuStatusPill" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">Halted</div>
+        </div>
+
+        <!-- Trace History Table -->
+        <div class="flex-1 overflow-auto">
+          <table class="w-full text-left font-mono text-xs border-collapse">
+            <thead class="bg-slate-900 text-slate-400 sticky top-0 border-b border-darkBorder">
+              <tr>
+                <th class="p-2 w-12 text-center">Step</th>
+                <th class="p-2 w-16">PC</th>
+                <th class="p-2">Instruction</th>
+                <th class="p-2">Top of Stack</th>
+                <th class="p-2">Memory Diff</th>
+              </tr>
+            </thead>
+            <tbody id="traceTableBody" class="divide-y divide-darkBorder text-slate-300">
+              <tr><td colspan="5" class="p-4 text-center text-slate-500">Press 'Step' or 'Run' to begin execution trace.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Live Stack & Locals Sidebar -->
+      <div class="col-span-1 bg-darkSurface border border-darkBorder rounded-xl p-5 flex flex-col space-y-6 overflow-y-auto">
+        <!-- Operand Stack -->
+        <div>
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Operand Stack (LIFO)</h3>
+          <div id="emuStackContainer" class="bg-slate-900/80 p-3 rounded-lg border border-darkBorder min-h-[100px] flex flex-col-reverse space-y-1.5 space-y-reverse text-xs font-mono">
+            <span class="text-slate-500 text-center py-4">Stack empty</span>
+          </div>
+        </div>
+
+        <!-- Locals -->
+        <div class="flex-1 flex flex-col">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Locals & Registers</h3>
+          <div id="emuLocalsContainer" class="flex-1 bg-slate-900/80 p-3 rounded-lg border border-darkBorder text-xs font-mono space-y-2 overflow-y-auto">
+            <span class="text-slate-500">No active frame</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let currentFunc = 0;
+    let moduleData = null;
+
+    async function init() {
+      await loadModuleOverview();
+      await updateActiveFunction();
+    }
+
+    async function loadModuleOverview() {
+      const res = await fetch('/api/module');
+      moduleData = await res.json();
+      
+      const funcSelect = document.getElementById('funcSelect');
+      funcSelect.innerHTML = '';
+      moduleData.functions.forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.index;
+        opt.textContent = `$${f.name} (func ${f.index})`;
+        funcSelect.appendChild(opt);
+      });
+      currentFunc = moduleData.functions[0]?.index || 0;
+    }
+
+    async function loadSample(sampleName) {
+      await fetch(`/api/load-sample/${sampleName}`, { method: 'POST' });
+      await loadModuleOverview();
+      await updateActiveFunction();
+    }
+
+    async function uploadBinary(file) {
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      await fetch('/api/upload', { method: 'POST', body: formData });
+      await loadModuleOverview();
+      await updateActiveFunction();
+    }
+
+    function selectFunction(idx) {
+      currentFunc = idx;
+      updateActiveFunction();
+    }
+
+    async function updateActiveFunction() {
+      document.getElementById('cfgTitle').textContent = `CFG: $${moduleData.functions[currentFunc]?.name || currentFunc}`;
+      await Promise.all([renderCFG(), renderCode(), renderMemory(), emuInvoke()]);
+    }
+
+    function switchTab(tab) {
+      ['cfg', 'code', 'memory', 'emulator'].forEach(t => {
+        document.getElementById(`pane-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).classList.remove('border-blue-500', 'text-blue-400');
+        document.getElementById(`tab-${t}`).classList.add('border-transparent', 'text-slate-400');
+      });
+      document.getElementById(`pane-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-${tab}`).classList.add('border-blue-500', 'text-blue-400');
+      document.getElementById(`tab-${tab}`).classList.remove('border-transparent', 'text-slate-400');
+    }
+
+    // --- CFG Rendering Engine ---
+    async function renderCFG() {
+      const res = await fetch(`/api/cfg/${currentFunc}`);
+      const cfg = await res.json();
+
+      document.getElementById('metricBlocks').textContent = cfg.metrics.block_count;
+      document.getElementById('metricEdges').textContent = cfg.metrics.edge_count;
+      document.getElementById('metricComplexity').textContent = cfg.metrics.cyclomatic_complexity;
+      document.getElementById('metricLoops').textContent = cfg.metrics.natural_loops_count;
+
+      const svg = document.getElementById('cfgSvg');
+      svg.innerHTML = '';
+
+      // Layout blocks vertically with horizontal branching
+      const nodeW = 200, nodeH = 100, gapY = 60;
+      let curY = 30;
+      const blockCoords = {};
+
+      cfg.blocks.forEach((b, idx) => {
+        const x = 120 + (b.depth * 30);
+        const y = curY;
+        blockCoords[b.id] = { x, y, w: nodeW, h: Math.max(70, 30 + b.instructions.length * 15) };
+        curY += blockCoords[b.id].h + gapY;
+      });
+
+      // Render Edges
+      cfg.edges.forEach(e => {
+        const s = blockCoords[e.source];
+        const t = blockCoords[e.target];
+        if (!s || !t) return;
+
+        let stroke = '#64748b';
+        if (e.type === 'branch_true') stroke = '#10b981';
+        else if (e.type === 'branch_false') stroke = '#f43f5e';
+        else if (e.type === 'loop_back') stroke = '#3b82f6';
+        else if (e.type === 'return') stroke = '#a855f7';
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const sx = s.x + s.w / 2, sy = s.y + s.h;
+        const tx = t.x + t.w / 2, ty = t.y;
+
+        let d = `M ${sx} ${sy} C ${sx} ${(sy + ty)/2}, ${tx} ${(sy + ty)/2}, ${tx} ${ty}`;
+        if (e.type === 'loop_back') {
+          d = `M ${s.x} ${s.y + s.h/2} C ${s.x - 70} ${s.y}, ${t.x - 70} ${t.y}, ${t.x} ${t.y + t.h/2}`;
+        }
+
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', stroke);
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('class', e.type === 'loop_back' ? 'cfg-edge' : '');
+        svg.appendChild(path);
+      });
+
+      // Render Block Nodes
+      cfg.blocks.forEach(b => {
+        const c = blockCoords[b.id];
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'cfg-node');
+        g.onclick = () => showBlockInfo(b);
+
+        let borderCol = '#334155';
+        if (b.block_type === 'entry') borderCol = '#10b981';
+        else if (b.block_type === 'loop_header') borderCol = '#3b82f6';
+        else if (b.block_type === 'exit') borderCol = '#f43f5e';
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', c.x);
+        rect.setAttribute('y', c.y);
+        rect.setAttribute('width', c.w);
+        rect.setAttribute('height', c.h);
+        rect.setAttribute('rx', '8');
+        rect.setAttribute('fill', '#1e293b');
+        rect.setAttribute('stroke', borderCol);
+        rect.setAttribute('stroke-width', '1.5');
+        g.appendChild(rect);
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        title.setAttribute('x', c.x + 10);
+        title.setAttribute('y', c.y + 20);
+        title.setAttribute('fill', '#94a3b8');
+        title.setAttribute('font-size', '11');
+        title.setAttribute('font-weight', 'bold');
+        title.textContent = `${b.id} (${b.block_type})`;
+        g.appendChild(title);
+
+        b.instructions.slice(0, 5).forEach((instr, i) => {
+          const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          t.setAttribute('x', c.x + 12);
+          t.setAttribute('y', c.y + 40 + i * 16);
+          t.setAttribute('fill', '#cbd5e1');
+          t.setAttribute('font-size', '10');
+          t.setAttribute('font-family', 'monospace');
+          t.textContent = `${instr.mnemonic} ${instr.operands || ''}`;
+          g.appendChild(t);
+        });
+
+        svg.appendChild(g);
+      });
+
+      svg.setAttribute('viewBox', `0 0 500 ${curY + 50}`);
+    }
+
+    function showBlockInfo(block) {
+      const container = document.getElementById('selectedBlockInfo');
+      container.innerHTML = `
+        <div class="font-bold text-blue-400 mb-1">Block: ${block.id} (${block.block_type})</div>
+        <div class="text-slate-400 mb-2">Offset: 0x${block.start_offset.toString(16).toUpperCase()}..0x${block.end_offset.toString(16).toUpperCase()}</div>
+        <div class="space-y-1">
+          ${block.instructions.map(i => `<div><span class="text-slate-500">0x${i.offset.toString(16).padStart(4, '0')}</span> <span class="text-emerald-400">${i.mnemonic}</span> <span class="text-yellow-300">${i.operands}</span></div>`).join('')}
+        </div>
+      `;
+    }
+
+    // --- Decompiler & WAT ---
+    async function renderCode() {
+      const watRes = await fetch(`/api/disasm/${currentFunc}`);
+      const wat = await watRes.json();
+      document.getElementById('watView').textContent = wat.wat;
+
+      const cRes = await fetch(`/api/decompile/${currentFunc}`);
+      const c = await cRes.json();
+      document.getElementById('decompileView').textContent = c.code;
+    }
+
+    // --- Linear Memory ---
+    async function renderMemory() {
+      const pagesRes = await fetch('/api/memory/pages');
+      const data = await pagesRes.json();
+
+      document.getElementById('memoryStats').textContent = 
+        `Total: ${data.total_size.toLocaleString()} bytes (${data.pages.length} pages) | Min: ${data.min_pages}, Max: ${data.max_pages}`;
+
+      const pagesList = document.getElementById('pagesList');
+      pagesList.innerHTML = '';
+      data.pages.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'p-3 bg-slate-900 border border-darkBorder rounded-lg cursor-pointer hover:border-blue-500 transition';
+        item.innerHTML = `
+          <div class="flex justify-between items-center text-xs font-mono">
+            <span class="text-blue-400 font-bold">Page ${p.index}</span>
+            <span class="text-slate-400">${p.utilization_pct}%</span>
+          </div>
+          <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div class="bg-blue-500 h-full" style="width: ${p.utilization_pct}%"></div>
+          </div>
+          <div class="text-[10px] text-slate-500 mt-1">0x${p.start_address.toString(16).padStart(6, '0')} - 0x${p.end_address.toString(16).padStart(6, '0')}</div>
+        `;
+        item.onclick = () => loadHexDump(p.index, 0);
+        pagesList.appendChild(item);
+      });
+
+      await loadHexDump(0, 0);
+    }
+
+    async function loadHexDump(page, offset) {
+      const hexRes = await fetch(`/api/memory/hex?page=${page}&offset=${offset}&length=256`);
+      const hexData = await hexRes.json();
+      const container = document.getElementById('hexDumpContainer');
+      container.innerHTML = hexData.lines.map(l => `
+        <div class="flex space-x-4 hover:bg-slate-900/60 px-1 rounded">
+          <span class="text-slate-500 select-none">${l.address}</span>
+          <span class="text-blue-300 font-bold tracking-wider">${l.hex_left}</span>
+          <span class="text-blue-300 font-bold tracking-wider">${l.hex_right}</span>
+          <span class="text-emerald-400 border-l border-darkBorder pl-3 select-none">${l.ascii}</span>
+        </div>
+      `).join('');
+    }
+
+    async function searchMemory() {
+      const q = document.getElementById('memSearchInput').value.trim();
+      if (!q) return;
+      const type = q.startsWith('0x') ? 'hex' : (!isNaN(parseInt(q)) ? 'i32' : 'string');
+      const res = await fetch('/api/memory/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, query: q }),
+      });
+      const data = await res.json();
+      alert(`Search matches (${data.total}): ${data.matches.join(', ')}`);
+    }
+
+    // --- Bytecode Emulator ---
+    async function emuInvoke() {
+      const argsStr = document.getElementById('emuArgsInput').value;
+      const args = argsStr ? argsStr.split(',').map(s => parseInt(s.trim())) : [];
+      const res = await fetch('/api/emulator/invoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ func_index: currentFunc, args }),
+      });
+      const data = await res.json();
+      document.getElementById('emuStatusPill').textContent = 'Ready';
+      document.getElementById('emuStatusPill').className = 'text-xs px-2.5 py-0.5 rounded-full bg-blue-900/40 text-blue-400 border border-blue-700 font-mono';
+      document.getElementById('traceTableBody').innerHTML = '';
+      updateStackAndLocals(data.stack, data.locals);
+    }
+
+    async function emuStep() {
+      const res = await fetch('/api/emulator/step', { method: 'POST' });
+      const trace = await res.json();
+      if (trace.is_halted) {
+        document.getElementById('emuStatusPill').textContent = 'Halted';
+        document.getElementById('emuStatusPill').className = 'text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono';
+        return;
+      }
+      appendTraceRow(trace);
+      updateStackAndLocals(trace.stack_after, trace.locals);
+    }
+
+    async function emuRun() {
+      const res = await fetch('/api/emulator/run', { method: 'POST' });
+      const data = await res.json();
+      document.getElementById('emuStatusPill').textContent = `Finished (${data.step_count} steps) -> [${data.results}]`;
+      document.getElementById('emuStatusPill').className = 'text-xs px-2.5 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-700 font-mono';
+    }
+
+    function appendTraceRow(t) {
+      const body = document.getElementById('traceTableBody');
+      const row = document.createElement('tr');
+      row.className = 'hover:bg-slate-900/60 font-mono';
+      row.innerHTML = `
+        <td class="p-2 text-center text-slate-500">${t.step_number}</td>
+        <td class="p-2 text-yellow-400">0x${t.pc.toString(16).toUpperCase()}</td>
+        <td class="p-2 font-bold text-slate-200">${t.instruction}</td>
+        <td class="p-2 text-emerald-400">${t.stack_after.map(s => s.value).join(', ') || '[]'}</td>
+        <td class="p-2 text-blue-400">${t.memory_diff ? `${t.memory_diff.address}: ${t.memory_diff.hex}` : '-'}</td>
+      `;
+      body.appendChild(row);
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function updateStackAndLocals(stack, locals) {
+      const sContainer = document.getElementById('emuStackContainer');
+      sContainer.innerHTML = stack && stack.length ? stack.map((s, i) => `
+        <div class="p-2 bg-slate-950 border border-blue-900/40 rounded flex justify-between">
+          <span class="text-slate-500">[${i}] ${s.type}</span>
+          <span class="text-blue-400 font-bold">${s.value}</span>
+        </div>
+      `).join('') : '<span class="text-slate-500 text-center py-4">Stack empty</span>';
+
+      const lContainer = document.getElementById('emuLocalsContainer');
+      lContainer.innerHTML = locals && locals.length ? locals.map(l => `
+        <div class="p-2 bg-slate-950 border border-darkBorder rounded flex justify-between">
+          <span class="text-slate-400">$${l.index} (${l.type})</span>
+          <span class="text-emerald-400 font-bold">${l.value}</span>
+        </div>
+      `).join('') : '<span class="text-slate-500">No locals</span>';
+    }
+
+    window.onload = async () => {
+      await init();
+      if (window.location.hash) {
+        const h = window.location.hash.substring(1);
+        if (['cfg', 'code', 'memory', 'emulator'].includes(h)) {
+          switchTab(h);
+        }
+      }
+    };
+  </script>
+</body>
+</html>
