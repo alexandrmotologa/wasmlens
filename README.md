@@ -5,6 +5,7 @@
 <h1 align="center">WasmLens</h1>
 
 <p align="center">
+  <a href="https://awesomerea.org/resources/wasmlens/"><img src="https://raw.githubusercontent.com/reacher-z/Awesome-REA/477658fa73f6860e86cd1fc526657c2efdc25194/assets/featured-by-awesome-rea-inline.svg" alt="Featured by Awesome REA"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+"></a>
   <img src="https://img.shields.io/badge/Wasm-2.0-blueviolet.svg" alt="WebAssembly 2.0">
